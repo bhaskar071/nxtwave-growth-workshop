@@ -1,4 +1,3 @@
-
 import os
 import csv
 import io
@@ -16,7 +15,8 @@ app.secret_key = os.environ.get(
     "SECRET_KEY", "local-demo-secret-change-before-deployment"
 )
 
-DB = "growth_studio.db"
+# Use DATABASE_PATH on hosting if a persistent database location is configured.
+DB = os.environ.get("DATABASE_PATH", "growth_studio.db")
 GOAL = 500
 BUDGET = 2000
 
@@ -42,7 +42,10 @@ BUDGET_PLAN = {
 EXPERIMENTS = [
     {
         "name": "Message positioning",
-        "hypothesis": "A practical project outcome will attract more registrations than a general AI-learning message.",
+        "hypothesis": (
+            "A practical project outcome will attract more registrations "
+            "than a general AI-learning message."
+        ),
         "test": "Compare two messages with similar audience groups.",
         "metric": "Registration conversion rate",
         "decision": "Use the message with the higher conversion rate after a fair comparison."
@@ -64,7 +67,9 @@ EXPERIMENTS = [
 ]
 
 
-# ---------------- DATABASE ----------------
+# --------------------------------------------------
+# DATABASE
+# --------------------------------------------------
 
 def connect_db():
     con = sqlite3.connect(DB)
@@ -73,6 +78,7 @@ def connect_db():
 
 
 def init_db():
+    """Create required tables whenever the app starts."""
     with connect_db() as con:
         con.execute("""
             CREATE TABLE IF NOT EXISTS registrations (
@@ -109,8 +115,11 @@ def init_db():
             INSERT OR IGNORE INTO referral_codes
             (code, owner, category, created_at)
             VALUES (?, ?, ?, ?)
-        """, ("CLUB01", "Demo College Club",
-              "College Club", now))
+        """, ("CLUB01", "Demo College Club", "College Club", now))
+
+
+# Critical fix: initialize tables when Gunicorn imports this module.
+init_db()
 
 
 def admin_required(fn):
@@ -122,7 +131,9 @@ def admin_required(fn):
     return wrapper
 
 
-# ---------------- SHARED DESIGN ----------------
+# --------------------------------------------------
+# SHARED WEBSITE DESIGN
+# --------------------------------------------------
 
 BASE = """
 <!doctype html>
@@ -249,65 +260,55 @@ ul.clean {padding-left:20px;line-height:1.9}
 <body>
 <div class="layout">
 <aside class="sidebar">
-  <div class="brand">
-    <span class="logo">AI</span>
-    <span>Campus Growth<br><span class="small">GROWTH ENGINE</span></span>
-  </div>
-
-  <div class="navtitle">{{ 'ADMIN WORKSPACE' if is_admin else 'WORKSHOP' }}</div>
-
-  <nav class="nav">
-  {% if is_admin %}
-    <a href="{{ url_for('dashboard') }}">▦ &nbsp; Dashboard</a>
-    <a href="{{ url_for('referrals') }}">↗ &nbsp; Referral tracker</a>
-    <a href="{{ url_for('campaign') }}">◷ &nbsp; Campaign plan</a>
-    <a href="{{ url_for('experiments') }}">✦ &nbsp; Experiments</a>
-    <a href="{{ url_for('message_studio') }}">✎ &nbsp; Message studio</a>
-    <a href="{{ url_for('registrations') }}">▤ &nbsp; Registrations</a>
-  {% else %}
-    <a href="{{ url_for('home') }}">⌂ &nbsp; Workshop overview</a>
-  {% endif %}
-  </nav>
-
-  <div class="brief">
-    <b style="color:#5e45d9">CAMPAIGN BRIEF</b><br>
-    Build Your First AI Project in 60 Minutes<br><br>
-    Goal: 500 registrations<br>
-    Duration: 7 days<br>
-    Budget: ₹2,000
-    <p style="color:#bd7900;font-weight:800;margin-bottom:0">
-      Simulation · Demo data only
-    </p>
-  </div>
+ <div class="brand">
+  <span class="logo">AI</span>
+  <span>Campus Growth<br><span class="small">GROWTH ENGINE</span></span>
+ </div>
+ <div class="navtitle">{{ 'ADMIN WORKSPACE' if is_admin else 'WORKSHOP' }}</div>
+ <nav class="nav">
+ {% if is_admin %}
+  <a href="{{ url_for('dashboard') }}">▦ &nbsp; Dashboard</a>
+  <a href="{{ url_for('referrals') }}">↗ &nbsp; Referral tracker</a>
+  <a href="{{ url_for('campaign') }}">◷ &nbsp; Campaign plan</a>
+  <a href="{{ url_for('experiments') }}">✦ &nbsp; Experiments</a>
+  <a href="{{ url_for('message_studio') }}">✎ &nbsp; Message studio</a>
+  <a href="{{ url_for('registrations') }}">▤ &nbsp; Registrations</a>
+ {% else %}
+  <a href="{{ url_for('home') }}">⌂ &nbsp; Workshop overview</a>
+ {% endif %}
+ </nav>
+ <div class="brief">
+  <b style="color:#5e45d9">CAMPAIGN BRIEF</b><br>
+  Build Your First AI Project in 60 Minutes<br><br>
+  Goal: 500 registrations<br>
+  Duration: 7 days<br>
+  Budget: ₹2,000
+  <p style="color:#bd7900;font-weight:800;margin-bottom:0">Simulation · Demo data only</p>
+ </div>
 </aside>
-
 <main>
-<div class="top">
- <div>
+ <div class="top">
+  <div>
    <div class="eyebrow">NXTWAVE GROWTH CHALLENGE</div>
    <h1>{{ title }}</h1>
    <div class="muted">Campus AI Growth Engine · Student acquisition prototype</div>
- </div>
-
- <div style="display:flex;gap:10px;flex-wrap:wrap">
- {% if is_admin %}
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+  {% if is_admin %}
    <a class="btn btn-secondary" href="{{ url_for('home') }}">View student site ↗</a>
    <a class="btn btn-pink" href="{{ url_for('logout') }}">Log out</a>
- {% else %}
+  {% else %}
    <span class="pill">● SIMULATION ONLY</span>
    <a class="btn btn-primary" href="{{ url_for('register') }}">Register for free →</a>
    <a class="btn btn-secondary" href="{{ url_for('admin_login') }}">Admin login</a>
- {% endif %}
+  {% endif %}
+  </div>
  </div>
-</div>
-
-{% for category, message in get_flashed_messages(with_categories=true) %}
-<div class="notice {{ 'success' if category=='success' else 'warning' }}">{{ message }}</div>
-{% endfor %}
-
-{{ content|safe }}
-
-<footer>Campus AI Growth Engine · Working prototype · Campaign targets are simulated</footer>
+ {% for category, message in get_flashed_messages(with_categories=true) %}
+ <div class="notice {{ 'success' if category=='success' else 'warning' }}">{{ message }}</div>
+ {% endfor %}
+ {{ content|safe }}
+ <footer>Campus AI Growth Engine · Working prototype · Campaign targets are simulated</footer>
 </main>
 </div>
 </body>
@@ -322,7 +323,9 @@ def page(title, content, is_admin=False, **context):
     )
 
 
-# ---------------- STUDENT WEBSITE ----------------
+# --------------------------------------------------
+# STUDENT WEBSITE
+# --------------------------------------------------
 
 @app.route("/")
 def home():
@@ -331,20 +334,18 @@ def home():
       <div class="eyebrow">FREE ONLINE WORKSHOP · BEGINNER FRIENDLY</div>
       <h2>Build Your First AI Project<br>in 60 Minutes</h2>
       <p class="muted">
-      Turn your curiosity about artificial intelligence into a practical project idea.
-      Join a focused, beginner-friendly workshop designed for final-year engineering students.
+       Turn your curiosity about artificial intelligence into a practical project idea.
+       Join a focused, beginner-friendly workshop designed for final-year engineering students.
       </p>
       <a class="btn btn-primary" href="{{ url_for('register') }}">Reserve your free spot →</a>
       <a class="btn btn-secondary" href="#learn">Explore workshop</a>
     </section>
-
     <div class="stats" style="margin-top:20px">
       <div class="stat"><span class="small">WORKSHOP DURATION</span><strong>60 min</strong><span class="small">Focused learning</span></div>
       <div class="stat"><span class="small">REGISTRATION FEE</span><strong>₹0</strong><span class="small">Free workshop</span></div>
       <div class="stat"><span class="small">LEARNING FOCUS</span><strong>AI Project</strong><span class="small">Practical introduction</span></div>
       <div class="stat"><span class="small">DELIVERY</span><strong>Online</strong><span class="small">Remote participation</span></div>
     </div>
-
     <section class="card" id="learn">
       <h2>What you will get</h2>
       <div class="grid">
@@ -355,7 +356,6 @@ def home():
       </div>
       <a class="btn btn-primary" href="{{ url_for('register') }}">Register for free →</a>
     </section>
-
     <div class="notice warning">
       Demo landing page: no real workshop date or joining link is being promised.
     </div>
@@ -388,7 +388,6 @@ def register():
                 exists = con.execute(
                     "SELECT 1 FROM referral_codes WHERE code=?", (code,)
                 ).fetchone()
-
                 if not exists:
                     flash(
                         "Referral code not found. Leave it blank if you do not have one.",
@@ -420,7 +419,6 @@ def register():
       <span class="eyebrow">YOUR NEXT LEARNING STEP</span>
       <h2 style="margin-top:10px">Register for the AI workshop</h2>
       <p class="muted">Complete this form to demonstrate the student registration journey.</p>
-
       <form method="post">
         <div class="grid">
           <div>
@@ -444,14 +442,11 @@ def register():
             </select>
           </div>
         </div>
-
         <label for="referral_code">AMBASSADOR OR CLUB REFERRAL CODE (OPTIONAL)</label>
         <input id="referral_code" name="referral_code" maxlength="40" placeholder="e.g. CAMPUS01">
-
         <div class="notice" style="margin-top:16px">
           Demo only: use fictional information. Referral codes are optional.
         </div>
-
         <button class="btn btn-primary" type="submit">Submit demo registration →</button>
         <a class="btn btn-secondary" href="{{ url_for('home') }}">Back to workshop</a>
       </form>
@@ -465,14 +460,16 @@ def registration_success():
     <section class="card" style="text-align:center;padding:45px 20px">
       <div style="font-size:48px;color:#0ba5a7">✓</div>
       <h2>Demo registration saved</h2>
-      <p class="muted">Your test submission has been saved to the local demo database.</p>
+      <p class="muted">Your test submission has been saved to the demo database.</p>
       <div class="notice warning">This is not a real workshop confirmation or joining link.</div>
       <a class="btn btn-primary" href="{{ url_for('home') }}">Back to workshop</a>
     </section>
     """)
 
 
-# ---------------- ADMIN LOGIN ----------------
+# --------------------------------------------------
+# ADMIN LOGIN
+# --------------------------------------------------
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -501,8 +498,8 @@ def admin_login():
         <button class="btn btn-primary" type="submit">Sign in →</button>
       </form>
       <div class="notice warning" style="margin-top:18px">
-        Local demo credentials: <b>admin</b> / <b>Nxtwave@123</b>.
-        Change them before public deployment.
+        Demo credentials: <b>admin</b> / <b>Nxtwave@123</b>.
+        Set secure environment variables before public use.
       </div>
     </section>
     """)
@@ -514,7 +511,9 @@ def logout():
     return redirect(url_for("home"))
 
 
-# ---------------- ADMIN DASHBOARD ----------------
+# --------------------------------------------------
+# ADMIN DASHBOARD
+# --------------------------------------------------
 
 @app.route("/admin")
 @admin_required
@@ -543,28 +542,24 @@ def dashboard():
     return page("Campaign dashboard", """
     <div class="notice success">Welcome to the admin workspace.</div>
     <div class="notice">
-      Simulation only. The registration goal is 500. Saved registrations are demo submissions,
+      Simulation only. Saved registrations are demo submissions,
       not proof of campaign performance.
     </div>
-
     <div class="stats">
       <div class="stat"><span class="small">REGISTRATION TARGET</span><strong>500</strong><span class="small">Seven-day goal</span></div>
-      <div class="stat"><span class="small">SAVED REGISTRATIONS</span><strong>{{ total }}</strong><span class="small">Local demo records</span></div>
+      <div class="stat"><span class="small">SAVED REGISTRATIONS</span><strong>{{ total }}</strong><span class="small">Demo records</span></div>
       <div class="stat"><span class="small">DEMO PROGRESS</span><strong>{{ pct }}%</strong><div class="progress"><span style="width:{{ pct }}%"></span></div></div>
       <div class="stat"><span class="small">PROPOSED BUDGET</span><strong>₹2,000</strong><span class="small">Hypothetical allocation</span></div>
     </div>
-
     <div class="grid">
       <section class="card"><h2>Registrations by channel</h2><canvas id="channelChart"></canvas></section>
       <section class="card"><h2>Proposed budget allocation</h2><canvas id="budgetChart"></canvas></section>
     </div>
-
     <section class="card">
       <h2>Seven-day registration targets</h2>
       <canvas id="targetChart"></canvas>
       <p class="small">Planned cumulative targets, not actual daily registrations.</p>
     </section>
-
     <div class="grid">
       <section class="card">
         <h2>Recent demo registrations</h2>
@@ -580,7 +575,6 @@ def dashboard():
         {% endif %}
         <p><a href="{{ url_for('registrations') }}">View all records →</a></p>
       </section>
-
       <section class="card">
         <h2>Quick actions</h2>
         <p><a href="{{ url_for('registrations') }}">▤ Registration records →</a></p>
@@ -590,7 +584,6 @@ def dashboard():
         <p><a href="{{ url_for('message_studio') }}">✎ Message studio →</a></p>
       </section>
     </div>
-
     <script>
     new Chart(document.getElementById('channelChart'), {
       type:'bar',
@@ -602,13 +595,8 @@ def dashboard():
           backgroundColor:['#7053f5','#3d73f5','#0ba5a7','#e94f9a','#f59e35','#8b9ab7']
         }]
       },
-      options:{
-        indexAxis:'y', responsive:true,
-        plugins:{legend:{display:false}},
-        scales:{x:{beginAtZero:true}}
-      }
+      options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}
     });
-
     new Chart(document.getElementById('budgetChart'), {
       type:'doughnut',
       data:{
@@ -620,7 +608,6 @@ def dashboard():
       },
       options:{responsive:true,plugins:{legend:{position:'bottom'}}}
     });
-
     new Chart(document.getElementById('targetChart'), {
       type:'line',
       data:{
@@ -634,10 +621,7 @@ def dashboard():
           tension:.3
         }]
       },
-      options:{
-        responsive:true,
-        scales:{y:{beginAtZero:true,max:500}}
-      }
+      options:{responsive:true,scales:{y:{beginAtZero:true,max:500}}}
     });
     </script>
     """, True,
@@ -652,7 +636,9 @@ def dashboard():
     )
 
 
-# ---------------- REGISTRATION RECORDS AND CSV ----------------
+# --------------------------------------------------
+# REGISTRATION RECORDS AND CSV EXPORT
+# --------------------------------------------------
 
 @app.route("/admin/registrations")
 @admin_required
@@ -665,9 +651,8 @@ def registrations():
     return page("Registration records", """
     <section class="card">
       <h2>Saved demo registrations</h2>
-      <p class="muted">These are local test submissions, not verified campaign outcomes.</p>
+      <p class="muted">These are test submissions, not verified campaign outcomes.</p>
       <p><a class="btn btn-primary" href="{{ url_for('export_csv') }}">Export CSV ↓</a></p>
-
       {% if rows %}
       <div class="table-wrap"><table>
         <tr><th>ID</th><th>Name</th><th>Email</th><th>College</th><th>Channel</th><th>Referral</th><th>Created</th></tr>
@@ -705,7 +690,7 @@ def export_csv():
     for row in rows:
         writer.writerow([row[key] for key in row.keys()])
 
-    response = make_response("\\ufeff" + output.getvalue())
+    response = make_response("\ufeff" + output.getvalue())
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = (
         "attachment; filename=demo_registrations.csv"
@@ -713,7 +698,9 @@ def export_csv():
     return response
 
 
-# ---------------- REFERRAL TRACKER ----------------
+# --------------------------------------------------
+# REFERRAL TRACKER
+# --------------------------------------------------
 
 @app.route("/admin/referrals", methods=["GET", "POST"])
 @admin_required
@@ -727,10 +714,8 @@ def referrals():
             "Student Ambassador", "College Club"
         ]:
             flash("Enter a code, owner, and valid category.", "warning")
-
         elif len(code) > 40 or len(owner) > 100:
             flash("Please shorten the code or owner name.", "warning")
-
         else:
             try:
                 with connect_db() as con:
@@ -743,7 +728,6 @@ def referrals():
                         datetime.now().strftime("%Y-%m-%d %H:%M")
                     ))
                 flash("Referral code created.", "success")
-
             except sqlite3.IntegrityError:
                 flash("That referral code already exists.", "warning")
 
@@ -774,17 +758,12 @@ def referrals():
           <button class="btn btn-primary">Create code →</button>
         </form>
       </section>
-
       <section class="card">
         <h2>How attribution works</h2>
-        <p class="muted">
-          A registration is attributed when a student enters a valid referral code.
-          The channel field separately records where they saw the workshop.
-        </p>
+        <p class="muted">A registration is attributed when a student enters a valid referral code. The channel field separately records where they saw the workshop.</p>
         <div class="notice warning">Creating a code does not imply real outreach.</div>
       </section>
     </div>
-
     <section class="card">
       <h2>Referral codes</h2>
       <div class="table-wrap"><table>
@@ -801,7 +780,9 @@ def referrals():
     """, True, codes=codes)
 
 
-# ---------------- CAMPAIGN PLAN ----------------
+# --------------------------------------------------
+# CAMPAIGN PLAN
+# --------------------------------------------------
 
 @app.route("/admin/campaign")
 @admin_required
@@ -821,14 +802,12 @@ def campaign():
     <div class="notice">
       Planning assumptions for a seven-day simulation. These are targets, not actual results.
     </div>
-
     <div class="stats">
       <div class="stat"><span class="small">TOTAL GOAL</span><strong>500</strong><span class="small">Registrations</span></div>
       <div class="stat"><span class="small">CAMPAIGN WINDOW</span><strong>7 days</strong><span class="small">Proposed schedule</span></div>
       <div class="stat"><span class="small">TOTAL BUDGET</span><strong>₹2,000</strong><span class="small">Hypothetical</span></div>
       <div class="stat"><span class="small">TARGET COST / REGISTRATION</span><strong>₹4</strong><span class="small">Budget divided by target</span></div>
     </div>
-
     <section class="card">
       <h2>Daily registration targets</h2>
       <div class="table-wrap"><table>
@@ -838,7 +817,6 @@ def campaign():
         {% endfor %}
       </table></div>
     </section>
-
     <section class="card">
       <h2>Proposed budget allocation</h2>
       <div class="table-wrap"><table>
@@ -853,7 +831,6 @@ def campaign():
         <tr><th>Total</th><th>₹{{ budget.values()|sum }}</th><th>100%</th><th>Hypothetical plan</th></tr>
       </table></div>
     </section>
-
     <section class="card">
       <h2>Execution sequence</h2>
       <ul class="clean">
@@ -876,7 +853,9 @@ def campaign():
     })
 
 
-# ---------------- EXPERIMENTS ----------------
+# --------------------------------------------------
+# PROPOSED EXPERIMENTS
+# --------------------------------------------------
 
 @app.route("/admin/experiments")
 @admin_required
@@ -885,7 +864,6 @@ def experiments():
     <div class="notice warning">
       These are proposed tests. No experiment has been run and no result is being claimed.
     </div>
-
     {% for e in experiments %}
     <section class="card">
       <span class="eyebrow">TEST {{ loop.index }}</span>
@@ -899,7 +877,9 @@ def experiments():
     """, True, experiments=EXPERIMENTS)
 
 
-# ---------------- MESSAGE STUDIO ----------------
+# --------------------------------------------------
+# MESSAGE STUDIO
+# --------------------------------------------------
 
 @app.route("/admin/message-studio", methods=["GET", "POST"])
 @admin_required
@@ -925,10 +905,8 @@ def message_studio():
 
     return page("Message studio", """
     <div class="notice warning">
-      Template-based copy assistant. This page does not call a live AI model.
-      Review the copy before use.
+      Template-based copy assistant. This page does not call a live AI model. Review the copy before use.
     </div>
-
     <div class="grid">
       <section class="card">
         <h2>Build a campaign message</h2>
@@ -939,18 +917,15 @@ def message_studio():
             <option {{ 'selected' if a == audience else '' }}>{{ a }}</option>
             {% endfor %}
           </select>
-
           <label>MESSAGE ANGLE</label>
           <select name="angle">
             {% for a in ["Practical outcome","Beginner friendly","Career relevance"] %}
             <option {{ 'selected' if a == angle else '' }}>{{ a }}</option>
             {% endfor %}
           </select>
-
           <button class="btn btn-primary" type="submit">Generate sample copy →</button>
         </form>
       </section>
-
       <section class="card">
         <h2>Suggested message</h2>
         {% if output %}
@@ -968,7 +943,9 @@ def message_studio():
     """, True, output=output, audience=audience, angle=angle)
 
 
-# ---------------- ERROR PAGE ----------------
+# --------------------------------------------------
+# ERROR HANDLER
+# --------------------------------------------------
 
 @app.errorhandler(404)
 def not_found(_error):
@@ -981,8 +958,16 @@ def not_found(_error):
     """), 404
 
 
-# ---------------- START APPLICATION ----------------
+# --------------------------------------------------
+# START APPLICATION
+# --------------------------------------------------
+
+# This runs both locally and when Render/Gunicorn imports the application.
+init_db()
 
 if __name__ == "__main__":
-    init_db()
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(
+        debug=os.environ.get("FLASK_DEBUG") == "1",
+        host="127.0.0.1",
+        port=int(os.environ.get("PORT", "5000"))
+    )
